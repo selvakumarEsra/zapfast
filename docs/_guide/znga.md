@@ -4,7 +4,7 @@ description: Alerts, briefings and replies drafted in your voice, from an AI tha
 nav_order: 0
 ---
 
-{% assign v = site.fork_version | default: "0.21.1-beta.1" %}
+{% assign v = site.fork_version | default: "0.21.1-beta.2" %}
 {% assign repo = site.fork_repository | default: "selvakumarEsra/zapfast" %}
 {% assign base = "https://github.com/" | append: repo | append: "/releases/download/v" | append: v %}
 
