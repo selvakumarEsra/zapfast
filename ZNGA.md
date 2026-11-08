@@ -86,6 +86,15 @@ Apple or Windows signing credentials the DMG and MSI are unsigned (on a
 Mac, right-click **Open** the first time). Homebrew, winget and AUR
 publishing are upstream's and never run for fork tags.
 
+## Docs site
+
+https://selvakumaresra.github.io/zapfast/ is built by
+`.github/workflows/znga-docs.yml` from upstream's `docs/` plus
+`docs/_guide/znga.md`, with `docs/_config.znga.yml` layered over
+`docs/_config.yml`. Upstream's Docs workflow is disabled on the fork (a
+repository setting, not a file change): it deploys zapfast.rocks with
+upstream's analytics and IndexNow.
+
 ## Tests
 
 ```

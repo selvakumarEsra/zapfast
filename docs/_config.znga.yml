@@ -1,0 +1,13 @@
+# Fork overlay, layered over _config.yml by .github/workflows/znga-docs.yml.
+# Upstream's _config.yml stays untouched so merges stay easy.
+title: ZapFast + Znga
+description: ZapFast, the fast WhatsApp app, with Znga, an opt-in AI companion.
+url: https://selvakumaresra.github.io
+fork_repository: selvakumarEsra/zapfast
+fork_version: "0.21.1-znga.1"
+
+jekyll_vitepress:
+  edit_link:
+    pattern: "https://github.com/selvakumarEsra/zapfast/edit/main/docs/:path"
+  github_star:
+    repository: selvakumarEsra/zapfast
