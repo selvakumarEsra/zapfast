@@ -59,7 +59,7 @@ git grep -n "znga hook"
 | `src/demo.rs` | `--demo-page znga`, `znga-drafts`, `znga-ask`, `znga-setup` |
 | `src/updates.rs` | `CONFIG` comes from `src/znga/update.rs` (the fork's releases and key) |
 | `.github/workflows/release.yml` | signs with `src/znga/update-public-key.hex`; skips notarization checks without Apple credentials |
-| `Cargo.toml` `version` | `<upstream>-znga.<n>` |
+| `Cargo.toml` `version` | `<upstream>-beta.<n>` |
 
 If a merge conflicts on one of those lines, keep upstream's change and put the
 hook back. The rail button lives in its own layer, so it does not touch
@@ -68,8 +68,9 @@ hook back. The rail button lives in its own layer, so it does not touch
 ## Releasing
 
 Fork versions are pre-releases of the upstream version they build on:
-`0.21.1-znga.1`, then `0.21.1-znga.2`, and after merging upstream 0.22.0,
-`0.22.0-znga.1`.
+`0.21.1-beta.1`, then `0.21.1-beta.2`, and after merging upstream 0.22.0,
+`0.22.0-beta.1`. The packaging tool accepts only `-alpha.N`, `-beta.N` and
+`-rc.N` pre-releases, so the fork uses `-beta.N`.
 
 1. Set `version` in `Cargo.toml`, run `cargo build` (updates `Cargo.lock`),
    and write `packaging/release-notes/v<version>.md`.

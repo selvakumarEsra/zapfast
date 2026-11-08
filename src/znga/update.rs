@@ -8,7 +8,7 @@ use fastframe_update::{MacConfig, Prereleases, UpdateConfig};
 pub const REPOSITORY: &str = "selvakumarEsra/zapfast";
 
 /// Upstream's names and history, with the fork's repository and key.
-/// Fork versions are pre-releases (`0.21.1-znga.1`), so they follow every
+/// Fork versions are pre-releases (`0.21.1-beta.1`), so they follow every
 /// published fork release above them.
 pub const CONFIG: UpdateConfig = UpdateConfig {
     legacy_names: &["fastsapp"],

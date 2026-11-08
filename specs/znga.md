@@ -339,7 +339,7 @@ A build with Znga checks this fork's releases for updates, never
 upstream's, so an update cannot replace Znga with upstream ZapFast. Fork
 releases are signed with the fork's own update key, and a build trusts
 only that key. Fork versions are pre-releases of the upstream version
-they are based on (`0.21.1-znga.1`), so a fork build moves to any newer
+they are based on (`0.21.1-beta.1`), so a fork build moves to any newer
 published fork release.
 
 implementations:
