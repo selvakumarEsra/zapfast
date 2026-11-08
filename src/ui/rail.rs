@@ -75,7 +75,9 @@ impl Destination {
     pub fn lit(self, app: &App) -> bool {
         let chats = app.page == Page::Chats && !app.show_starred;
         match self {
-            Self::Chats => chats && !app.show_archived && !app.locked_folder_open(),
+            Self::Chats => {
+                chats && !app.show_archived && !app.locked_folder_open() && !favourites_lit(app) // extras hook
+            }
             Self::Calls => app.page == Page::Calls,
             Self::Starred => app.page == Page::Chats && app.show_starred,
             Self::Archived => chats && app.show_archived,
@@ -115,6 +117,8 @@ impl Destination {
                 if app.locked_folder {
                     actions.push(Action::CloseLockedFolder);
                 }
+                #[cfg(feature = "extras")]
+                crate::extras::favourites::leave(app, &mut actions); // extras hook
             }
             Self::Calls => {
                 if app.page != Page::Calls {
@@ -392,6 +396,17 @@ fn destination_button(
         let actions = destination.actions(app);
         app.actions.extend(actions);
     }
+}
+
+/// extras hook: Favourites is a destination too, so Chats is dark beside it.
+fn favourites_lit(app: &App) -> bool {
+    #[cfg(feature = "extras")]
+    return crate::extras::favourites::lit(app);
+    #[cfg(not(feature = "extras"))]
+    return {
+        let _ = app;
+        false
+    };
 }
 
 #[cfg(test)]

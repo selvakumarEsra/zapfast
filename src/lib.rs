@@ -24,6 +24,8 @@ pub mod camera;
 pub mod demo;
 pub mod diagnostics;
 pub mod emoji;
+#[cfg(feature = "extras")]
+pub mod extras; // extras hook
 pub mod geo;
 pub mod group_admin;
 pub mod i18n;

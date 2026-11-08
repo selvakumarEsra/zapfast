@@ -1223,6 +1223,8 @@ pub async fn run(
                 worker.pump_read_sync();
                 worker.pump_favorite_chats();
                 worker.pump_poll_votes();
+                #[cfg(feature = "extras")]
+                crate::extras::keep::drain_forgets(worker.archive.extras_connection(), &worker.dirs.archive_db()); // extras hook
                 worker.pump_poll_history();
                 worker.pump_prefetch();
                 worker.expire_timer_acks();

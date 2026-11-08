@@ -465,6 +465,8 @@ pub struct App {
     /// The fork's AI companion.
     #[cfg(feature = "znga")]
     pub znga: crate::znga::Znga, // znga hook
+    #[cfg(feature = "extras")]
+    pub extras: crate::extras::Extras, // extras hook
     pub adding_account: bool,
     /// The account on screen when "Add account" was chosen, for Cancel.
     account_before_adding: Option<AccountId>,
@@ -1564,6 +1566,8 @@ impl App {
         let mut app = Self {
             #[cfg(feature = "znga")]
             znga: crate::znga::Znga::load(&dirs.config, &dirs.cache, waker.clone()), // znga hook
+            #[cfg(feature = "extras")]
+            extras: crate::extras::Extras::load(&dirs.config), // extras hook
             dirs,
             settings,
             locale,
@@ -4086,6 +4090,8 @@ impl App {
                 self.maybe_notify(&chat, &message);
                 #[cfg(feature = "znga")]
                 crate::znga::hooks::observe_incoming(self, &chat, &message); // znga hook
+                #[cfg(feature = "extras")]
+                crate::extras::on_incoming(self, &chat, &message); // extras hook
             }
             Event::Picked {
                 chat,
@@ -10469,6 +10475,8 @@ impl App {
         self.handle_events();
         #[cfg(feature = "znga")]
         crate::znga::hooks::tick(self); // znga hook
+        #[cfg(feature = "extras")]
+        crate::extras::tick(self); // extras hook
         for uri in std::mem::take(&mut self.stale_images) {
             crate::image_cache::forget(ctx, &uri);
         }
@@ -11465,6 +11473,8 @@ impl App {
         crate::ui::show(self, ui);
         #[cfg(feature = "znga")]
         crate::znga::ui::show(self, ctx); // znga hook
+        #[cfg(feature = "extras")]
+        crate::extras::ui::show(self, ctx); // extras hook
         self.apply_actions(ctx);
         // After the view and its actions, so a change this frame starts the
         // pause from now. Nobody types behind the lock screen.

@@ -482,6 +482,12 @@ impl Archive {
         Ok(Self::prepare(encryption::open(path, key)?)?)
     }
 
+    /// extras hook: the fork's queries read through this (src/extras/).
+    #[cfg(feature = "extras")]
+    pub(crate) fn extras_connection(&self) -> &Connection {
+        &self.connection
+    }
+
     pub fn in_memory() -> Result<Self> {
         Self::prepare(Connection::open_in_memory()?)
     }
@@ -2657,6 +2663,8 @@ impl Archive {
         content: &Content,
         edited: bool,
     ) -> Result<bool> {
+        #[cfg(feature = "extras")]
+        crate::extras::keep::preserve(&self.connection, chat, id, content, false); // extras hook
         let changed = self.connection.execute(
             "UPDATE messages SET content = ?3, edited = ?4 WHERE chat = ?1 AND id = ?2",
             params![
@@ -2681,6 +2689,8 @@ impl Archive {
         content: &Content,
         mentions: &[crate::model::MentionRef],
     ) -> Result<bool> {
+        #[cfg(feature = "extras")]
+        crate::extras::keep::preserve(&self.connection, chat, id, content, true); // extras hook
         let changed = self.connection.execute(
             "UPDATE messages SET content = ?3, mentions = ?4, edited = 1 WHERE chat = ?1 AND id = ?2",
             params![

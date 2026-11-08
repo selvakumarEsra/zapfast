@@ -2021,6 +2021,10 @@ pub fn apply_flags(app: &mut App, page: Option<&str>) {
         if crate::znga::demo::apply(app, part) {
             continue; // znga hook
         }
+        #[cfg(feature = "extras")]
+        if crate::extras::demo::apply(app, part) {
+            continue; // extras hook
+        }
         match part {
             "history-date" => history_date_sample(app),
             "chat" | "" => {}

@@ -60,3 +60,17 @@ that a message from you came from you.
 Znga is off until you turn it on. Cloud engines ask for your consent before
 reading anything. Locked and excluded chats are never read, and message text
 stays in memory.
+
+## More in this build
+
+- **Favourites** — the heart on the left rail opens your favourite chats and
+  groups, the way Archived opens archived ones.
+- **Insights** — the bar-chart button opens a dashboard of your WhatsApp
+  activity, worked out on your computer: your trends, busiest hours, streaks,
+  top chats and reply times, and people you've drifted from. It looks at when
+  and with whom you talk; reading what was said (most used words and emoji)
+  is optional and off until you turn it on. You can also analyse a chat
+  export from WhatsApp without saving it.
+- **Keep** — messages deleted for everyone, and the versions that edits
+  replace, stay in your local archive under Insights → Deleted & edited, and
+  every attachment is saved as it arrives.
