@@ -147,7 +147,25 @@ pub fn load_archive(connection: &Connection, request: &Request) -> rusqlite::Res
         chats: request.chats.clone(),
         records,
         with_text: request.with_text,
+        full: full_history(connection, &index)?,
     })
+}
+
+/// The listed chats whose phone said there is nothing older.
+fn full_history(
+    connection: &Connection,
+    index: &HashMap<&str, u32>,
+) -> rusqlite::Result<std::collections::HashSet<String>> {
+    let mut statement = connection.prepare("SELECT id FROM chats WHERE history_start")?;
+    let ids = statement.query_map([], |row| row.get::<_, String>(0))?;
+    let mut full = std::collections::HashSet::new();
+    for id in ids {
+        let id = id?;
+        if index.contains_key(id.as_str()) {
+            full.insert(id);
+        }
+    }
+    Ok(full)
 }
 
 #[cfg(test)]
@@ -163,7 +181,9 @@ mod tests {
                  INSERT INTO messages VALUES ('a', '1', 0, 1700000000, '{\"kind\":\"text\",\"text\":\"hi\"}');
                  INSERT INTO messages VALUES ('a', '2', 1, 1700000060, '{\"kind\":\"image\",\"caption\":\"cat\"}');
                  INSERT INTO messages VALUES ('a', '3', 1, 1700000090, '{\"kind\":\"revoked\"}');
-                 INSERT INTO messages VALUES ('locked', '4', 0, 1700000100, '{\"kind\":\"text\",\"text\":\"secret\"}');",
+                 INSERT INTO messages VALUES ('locked', '4', 0, 1700000100, '{\"kind\":\"text\",\"text\":\"secret\"}');
+                 CREATE TABLE chats (id TEXT, history_start INTEGER);
+                 INSERT INTO chats VALUES ('a', 1), ('locked', 1);",
             )
             .unwrap();
         let mut request = Request {
@@ -180,6 +200,11 @@ mod tests {
         assert_eq!(source.records.len(), 2, "the deletion stub is no message");
         assert!(source.records.iter().all(|record| record.text.is_none()));
         assert_eq!(source.records[1].kind, Kind::Photo);
+        assert_eq!(
+            source.full.iter().collect::<Vec<_>>(),
+            ["a"],
+            "a locked chat's state is not read either"
+        );
         request.with_text = true;
         let source = load_archive(&connection, &request).unwrap();
         assert_eq!(source.records[0].text.as_deref(), Some("hi"));

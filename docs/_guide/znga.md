@@ -4,7 +4,7 @@ description: Alerts, briefings and replies drafted in your voice, from an AI tha
 nav_order: 0
 ---
 
-{% assign v = site.fork_version | default: "0.21.1-beta.2" %}
+{% assign v = site.fork_version | default: "0.21.1-beta.3" %}
 {% assign repo = site.fork_repository | default: "selvakumarEsra/zapfast" %}
 {% assign base = "https://github.com/" | append: repo | append: "/releases/download/v" | append: v %}
 
@@ -69,8 +69,10 @@ stays in memory.
   activity, worked out on your computer: your trends, busiest hours, streaks,
   top chats and reply times, and people you've drifted from. It looks at when
   and with whom you talk; reading what was said (most used words and emoji)
-  is optional and off until you turn it on. You can also analyse a chat
-  export from WhatsApp without saving it.
+  is optional and off until you turn it on. The History tab shows how far
+  back each chat goes, and fills the gaps: it can ask your phone for older
+  messages, or merge a chat export from WhatsApp into the matching chat
+  without saving it.
 - **Keep** — messages deleted for everyone, and the versions that edits
   replace, stay in your local archive under Insights → Deleted & edited, and
   every attachment is saved as it arrives.

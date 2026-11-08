@@ -107,6 +107,7 @@ impl Export {
             }],
             records,
             with_text,
+            full: Default::default(),
         }
     }
 }

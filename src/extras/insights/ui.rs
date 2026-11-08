@@ -4,7 +4,7 @@
 
 use egui::{Align, Color32, FontId, Layout, Rect, RichText, Sense, Stroke, Ui, Vec2, pos2, vec2};
 
-use super::stats::{Kind, Period, Stats};
+use super::stats::{Kind, Period, Reach, Stats};
 use super::{Choice, Tab};
 use crate::app::App;
 use crate::extras::keep::Why;
@@ -119,6 +119,10 @@ fn thousands(n: u32) -> String {
 
 pub fn show(app: &mut App, ctx: &egui::Context) {
     super::poll(app);
+    if app.extras.insights.fetch.running() {
+        // The run's next request is due even when nothing else redraws.
+        ctx.request_repaint_after(std::time::Duration::from_secs(1));
+    }
     if !app.extras.insights.open {
         return;
     }
@@ -157,6 +161,7 @@ fn dashboard(app: &mut App, ui: &mut Ui) {
                 },
             ),
             (Tab::Saving, "Saving".to_owned()),
+            (Tab::History, "History".to_owned()),
         ] {
             if ui
                 .selectable_label(app.extras.insights.tab == tab, label)
@@ -175,6 +180,7 @@ fn dashboard(app: &mut App, ui: &mut Ui) {
             match app.extras.insights.tab {
                 Tab::Kept => kept(app, ui, &palette),
                 Tab::Saving => saving(app, ui, &palette),
+                Tab::History => history(app, ui, &palette),
                 tab => numbers(app, ui, &palette, tab),
             }
         });
@@ -246,33 +252,70 @@ fn header(app: &mut App, ui: &mut Ui, palette: &Palette) {
             }
         });
     });
-    // An export waiting to be told which name is the person's.
+    // An export waiting to be told which name is the person's, then which
+    // chat it is.
     let mut chosen = None;
+    let mut into: Option<Option<String>> = None;
     let mut cancel = false;
     if let Some(pending) = &app.extras.insights.pending {
-        card(ui, palette, "Which of these is you?", |ui| {
-            ui.label(
-                RichText::new(format!(
-                    "\"{}\" has {} messages. Pick your name so sent and received are told apart.",
-                    pending.export.title,
-                    pending.export.lines.len()
-                ))
-                .color(palette.secondary),
-            );
-            ui.horizontal_wrapped(|ui| {
-                for (name, count) in pending.senders.iter().take(12) {
-                    if ui.button(format!("{name} · {count}")).clicked() {
-                        chosen = Some(name.clone());
+        match &pending.me {
+            None => card(ui, palette, "Which of these is you?", |ui| {
+                ui.label(
+                    RichText::new(format!(
+                        "\"{}\" has {} messages. Pick your name so sent and received are told apart.",
+                        pending.export.title,
+                        pending.export.lines.len()
+                    ))
+                    .color(palette.secondary),
+                );
+                ui.horizontal_wrapped(|ui| {
+                    for (name, count) in pending.senders.iter().take(12) {
+                        if ui.button(format!("{name} · {count}")).clicked() {
+                            chosen = Some(name.clone());
+                        }
                     }
-                }
-                if ui.button("Cancel").clicked() {
-                    cancel = true;
-                }
-            });
-        });
+                    if ui.button("Cancel").clicked() {
+                        cancel = true;
+                    }
+                });
+            }),
+            Some(_) => card(ui, palette, "Which chat is it?", |ui| {
+                ui.label(
+                    RichText::new(
+                        "Merged into a chat, the export adds the messages this computer does not have to this account's numbers. Only for this session; nothing is written to the archive.",
+                    )
+                    .color(palette.secondary),
+                );
+                ui.horizontal_wrapped(|ui| {
+                    for (index, (id, title)) in pending.chats.iter().take(8).enumerate() {
+                        let button = if index == 0 {
+                            egui::Button::new(RichText::new(format!("Merge into {title}")).strong())
+                        } else {
+                            egui::Button::new(format!("Merge into {title}"))
+                        };
+                        if ui.add(button).clicked() {
+                            into = Some(Some(id.clone()));
+                        }
+                    }
+                    if ui
+                        .button("Keep separate")
+                        .on_hover_text("Show the export as a source of its own, as before")
+                        .clicked()
+                    {
+                        into = Some(None);
+                    }
+                    if ui.button("Cancel").clicked() {
+                        cancel = true;
+                    }
+                });
+            }),
+        }
     }
     if let Some(me) = chosen {
         super::import_as(app, &me);
+    }
+    if let Some(chat) = into {
+        super::merge_into(app, chat);
     }
     if cancel {
         app.extras.insights.pending = None;
@@ -382,6 +425,9 @@ fn kpi(ui: &mut Ui, palette: &Palette, value: &str, label: &str, note: Option<No
 }
 
 fn overview(app: &mut App, ui: &mut Ui, palette: &Palette, stats: &Stats) {
+    if app.extras.insights.choice == Choice::Account {
+        coverage_line(app, ui, palette);
+    }
     let change = stats.previous_total.and_then(|previous| {
         if previous == 0 {
             return None;
@@ -1138,7 +1184,7 @@ fn kept(app: &mut App, ui: &mut Ui, palette: &Palette) {
         });
         return;
     }
-    let archive = app.dirs.archive_db();
+    let archive = super::archive_path(app);
     let mut forget = None;
     let mut open = None;
     for (index, item) in app.extras.insights.kept.iter().enumerate().take(500) {
@@ -1281,5 +1327,283 @@ fn saving(app: &mut App, ui: &mut Ui, palette: &Palette) {
     }
     if count {
         super::refresh(app);
+    }
+}
+
+/// From when the numbers run, and how many chats are complete
+/// (REQ-EXTRAS-011.A2).
+fn coverage_line(app: &mut App, ui: &mut Ui, palette: &Palette) {
+    let list = app.extras.insights.coverage();
+    let Some(oldest) = list.iter().map(|chat| chat.oldest_at).min() else {
+        return;
+    };
+    let full = list
+        .iter()
+        .filter(|chat| chat.reach != Reach::Partial)
+        .count();
+    let total = list.len();
+    let since = super::source::local(oldest, &jiff::tz::TimeZone::system()).0;
+    let mut go = false;
+    ui.horizontal_wrapped(|ui| {
+        ui.label(
+            RichText::new(format!(
+                "Numbers run from {} · {full} of {total} chats have their full history",
+                day_label(since, true)
+            ))
+            .font(crate::theme::regular(12.5))
+            .color(palette.secondary),
+        );
+        if full < total && ui.link("Fill in older history").clicked() {
+            go = true;
+        }
+    });
+    if go {
+        app.extras.insights.tab = Tab::History;
+    }
+}
+
+/// What the numbers cover, older history from the phone, and merged
+/// exports (REQ-EXTRAS-009/010/011).
+fn history(app: &mut App, ui: &mut Ui, palette: &Palette) {
+    if app.extras.insights.loading() && app.extras.insights.coverage().is_empty() {
+        card(ui, palette, "", |ui| {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("Reading your messages on this computer…");
+            });
+        });
+        return;
+    }
+    let list = app.extras.insights.coverage().to_vec();
+    let partial = list
+        .iter()
+        .filter(|chat| chat.reach == Reach::Partial)
+        .count();
+    let connected = matches!(app.account().link, crate::backend::LinkStatus::Connected);
+    card(ui, palette, "What the numbers cover", |ui| {
+        ui.label(
+            RichText::new(
+                "Insights counts the messages on this computer. Your phone sent recent history when you linked it; older messages stay on the phone until they are asked for. Fill the gaps by fetching older history from your phone, or by merging a chat export.",
+            )
+            .color(palette.secondary),
+        );
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(format!(
+                "{} chats · {} with full history · {} with an export · {partial} partial",
+                list.len(),
+                list.iter().filter(|chat| chat.reach == Reach::Full).count(),
+                list.iter()
+                    .filter(|chat| chat.reach == Reach::WithExport)
+                    .count(),
+            ))
+            .color(palette.text),
+        );
+    });
+
+    // Older history from the phone.
+    let mut start = false;
+    let mut stop = false;
+    let mut pick_top = false;
+    let mut clear = false;
+    card(ui, palette, "Fetch older history from your phone", |ui| {
+        let insights = &app.extras.insights;
+        ui.label(
+            RichText::new(format!(
+                "Asks your phone for older messages in the chats ticked below, the way scrolling to the top of a chat does: up to {} messages per chat, one request every {} seconds. Only your own phone is asked. On an iPhone, WhatsApp may show \"Syncing\" while it answers.",
+                super::fetch::PAGES * 50,
+                super::fetch::GAP.as_secs()
+            ))
+            .color(palette.secondary),
+        );
+        ui.add_space(4.0);
+        if insights.fetch.running() {
+            let (asked, cap) = insights.fetch.progress();
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(format!("Asked {asked} of at most {cap} times"));
+                if !connected {
+                    ui.colored_label(palette.warning, "Waiting for your phone to connect");
+                }
+                if ui.button("Stop").clicked() {
+                    stop = true;
+                }
+            });
+            ui.add(egui::ProgressBar::new(asked as f32 / cap.max(1) as f32).desired_height(6.0));
+        } else {
+            ui.horizontal_wrapped(|ui| {
+                let chosen = insights.selected.len();
+                let label = match chosen {
+                    0 => "Fetch older history".to_owned(),
+                    1 => "Fetch older history for 1 chat".to_owned(),
+                    n => format!("Fetch older history for {n} chats"),
+                };
+                let button = ui
+                    .add_enabled(chosen > 0 && connected, egui::Button::new(label))
+                    .on_disabled_hover_text(if connected {
+                        "Tick the chats to fetch below"
+                    } else {
+                        "Your phone is not connected"
+                    });
+                if button.clicked() {
+                    start = true;
+                }
+                if partial > 0 && ui.button("Tick the 10 busiest partial chats").clicked() {
+                    pick_top = true;
+                }
+                if chosen > 0 && ui.button("Clear").clicked() {
+                    clear = true;
+                }
+            });
+        }
+    });
+    if pick_top {
+        let insights = &mut app.extras.insights;
+        insights.selected.extend(
+            list.iter()
+                .filter(|chat| chat.reach == Reach::Partial)
+                .take(10)
+                .map(|chat| chat.id.clone()),
+        );
+    }
+    if clear {
+        app.extras.insights.selected.clear();
+    }
+    if start {
+        super::start_fetch(app);
+    }
+    if stop {
+        app.extras.insights.fetch.stop();
+    }
+
+    // Exports merged in this session.
+    let mut remove = None;
+    if !app.extras.insights.merges.is_empty() {
+        card(ui, palette, "Merged exports", |ui| {
+            for (index, merge) in app.extras.insights.merges.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    let title = app.chat_title_of(&merge.chat);
+                    ui.label(RichText::new(title).strong().color(palette.text));
+                    ui.label(
+                        RichText::new(format!(
+                            "from \"{}\" · {} messages read",
+                            merge.export,
+                            thousands(merge.records.len() as u32)
+                        ))
+                        .color(palette.secondary),
+                    );
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui.small_button("Remove").clicked() {
+                            remove = Some(index);
+                        }
+                    });
+                });
+            }
+        });
+    }
+    if let Some(index) = remove {
+        super::unmerge(app, index);
+    }
+
+    // Every chat, most messages first.
+    let mut toggle = None;
+    let mut open = None;
+    let running = app.extras.insights.fetch.running();
+    card(ui, palette, "Chats", |ui| {
+        if list.is_empty() {
+            ui.label(RichText::new("No messages on this computer yet.").color(palette.secondary));
+        }
+        let zone = jiff::tz::TimeZone::system();
+        for chat in list.iter().take(300) {
+            ui.horizontal(|ui| {
+                let can_fetch = chat.reach != Reach::Full;
+                let ticked = app.extras.insights.selected.contains(&chat.id);
+                let enabled = can_fetch && !running;
+                // An outlined box: egui's own checkbox has no frame in this
+                // theme when it is not ticked.
+                let (rect, response) = ui.allocate_exact_size(Vec2::splat(18.0), Sense::click());
+                let response = response.on_hover_text(match (can_fetch, running) {
+                    (false, _) => "Your phone said there is nothing older",
+                    (true, true) => "A fetch is running",
+                    (true, false) => "Fetch this chat's older history",
+                });
+                if can_fetch {
+                    let stroke = if enabled && response.hovered() {
+                        palette.text
+                    } else {
+                        palette.secondary
+                    };
+                    let fill = if ticked {
+                        palette.accent
+                    } else {
+                        Color32::TRANSPARENT
+                    };
+                    ui.painter().rect(
+                        rect.shrink(1.0),
+                        4.0,
+                        fill,
+                        Stroke::new(1.5, if ticked { palette.accent } else { stroke }),
+                        egui::StrokeKind::Inside,
+                    );
+                    if ticked {
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "✓",
+                            crate::theme::bold(12.0),
+                            palette.surface,
+                        );
+                    }
+                }
+                if enabled && response.clicked() {
+                    toggle = Some((chat.id.clone(), !ticked));
+                }
+                let title = if app.extras.insights.fetch.is_target(&chat.id) {
+                    format!("{} ⟳", chat.title)
+                } else {
+                    chat.title.clone()
+                };
+                ui.label(RichText::new(title).strong().color(palette.text));
+                if chat.group {
+                    ui.label(RichText::new("group").small().color(palette.secondary));
+                }
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.small_button("Open").clicked() {
+                        open = Some(chat.id.clone());
+                    }
+                    let color = match chat.reach {
+                        Reach::Full => palette.accent,
+                        Reach::WithExport => Color32::from_rgb(0x4F, 0x8D, 0xF7),
+                        Reach::Partial => palette.secondary,
+                    };
+                    ui.label(RichText::new(chat.reach.label()).color(color));
+                    let since = super::source::local(chat.oldest_at, &zone).0;
+                    let merged = if chat.merged > 0 {
+                        format!(" ({} from export)", thousands(chat.merged))
+                    } else {
+                        String::new()
+                    };
+                    ui.label(
+                        RichText::new(format!(
+                            "since {} · {} messages{merged}",
+                            day_label(since, true),
+                            thousands(chat.messages)
+                        ))
+                        .color(palette.secondary),
+                    );
+                });
+            });
+        }
+    });
+    if let Some((id, on)) = toggle {
+        let selected = &mut app.extras.insights.selected;
+        if on {
+            selected.insert(id);
+        } else {
+            selected.remove(&id);
+        }
+    }
+    if let Some(id) = open {
+        app.actions.push(Action::OpenChat(id));
     }
 }

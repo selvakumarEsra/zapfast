@@ -4,7 +4,7 @@ title: ZapFast + Znga
 description: ZapFast, the fast WhatsApp app, with Znga, an opt-in AI companion.
 url: https://selvakumaresra.github.io
 fork_repository: selvakumarEsra/zapfast
-fork_version: "0.21.1-beta.2"
+fork_version: "0.21.1-beta.3"
 
 jekyll_vitepress:
   edit_link:

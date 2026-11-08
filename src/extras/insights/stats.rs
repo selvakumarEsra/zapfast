@@ -90,6 +90,8 @@ pub struct Source {
     pub records: Vec<Record>,
     /// Whether the records carry text.
     pub with_text: bool,
+    /// Chats whose phone said there is nothing older (REQ-EXTRAS-011).
+    pub full: HashSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -544,6 +546,82 @@ pub fn words<'a>(records: impl Iterator<Item = &'a Record>) -> Words {
     }
 }
 
+/// How far back one chat's data reaches (REQ-EXTRAS-011).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reach {
+    /// The phone said there is nothing older.
+    Full,
+    /// A merged export reaches further back than the archive.
+    WithExport,
+    Partial,
+}
+
+impl Reach {
+    pub fn label(self) -> &'static str {
+        match self {
+            Reach::Full => "Full history",
+            Reach::WithExport => "With export",
+            Reach::Partial => "Partial",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Coverage {
+    pub id: String,
+    pub title: String,
+    pub group: bool,
+    /// Unix seconds of the oldest message, archived or merged.
+    pub oldest_at: i64,
+    pub messages: u32,
+    /// Of `messages`, how many came from a merged export.
+    pub merged: u32,
+    pub reach: Reach,
+}
+
+/// Each chat's coverage, most messages first. `account` holds the archive's
+/// records; `merged` the export records added to them. Reads only times and
+/// chat state.
+pub fn coverage(account: &Source, merged: &[Record]) -> Vec<Coverage> {
+    // (oldest archived, oldest merged, archived count, merged count)
+    type Seen = (Option<i64>, Option<i64>, u32, u32);
+    let mut seen: HashMap<u32, Seen> = HashMap::new();
+    for record in &account.records {
+        let entry = seen.entry(record.chat).or_default();
+        entry.0 = Some(entry.0.map_or(record.at, |at| at.min(record.at)));
+        entry.2 += 1;
+    }
+    for record in merged {
+        let entry = seen.entry(record.chat).or_default();
+        entry.1 = Some(entry.1.map_or(record.at, |at| at.min(record.at)));
+        entry.3 += 1;
+    }
+    let mut list: Vec<Coverage> = seen
+        .into_iter()
+        .filter_map(|(chat, (archived, exported, count, added))| {
+            let meta = account.chats.get(chat as usize)?;
+            let reach = if account.full.contains(&meta.id) {
+                Reach::Full
+            } else if exported.is_some_and(|at| archived.is_none_or(|oldest| at < oldest)) {
+                Reach::WithExport
+            } else {
+                Reach::Partial
+            };
+            Some(Coverage {
+                id: meta.id.clone(),
+                title: meta.title.clone(),
+                group: meta.group,
+                oldest_at: archived.into_iter().chain(exported).min()?,
+                messages: count + added,
+                merged: added,
+                reach,
+            })
+        })
+        .collect();
+    list.sort_by(|a, b| b.messages.cmp(&a.messages).then(a.title.cmp(&b.title)));
+    list
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -583,6 +661,7 @@ pub(crate) mod tests {
             ],
             records,
             with_text: false,
+            full: HashSet::new(),
         }
     }
 
@@ -721,5 +800,28 @@ pub(crate) mod tests {
         assert_eq!(words.top_emoji[0], ("🍕".to_owned(), 2));
         assert_eq!(words.texts, 2);
         assert!(words.my_average > words.their_average);
+    }
+
+    #[test]
+    fn coverage_tells_full_partial_and_exported_apart() {
+        let mut account = source(vec![
+            record(0, true, TODAY - 10, 9, 0),
+            record(0, false, TODAY - 5, 9, 0),
+            record(1, false, TODAY - 7, 9, 0),
+            record(2, true, TODAY - 3, 9, 0),
+        ]);
+        account.full.insert("a".into());
+        // An export for Bob that reaches back before the archive.
+        let early = record(2, false, TODAY - 40, 9, 0);
+        let list = coverage(&account, std::slice::from_ref(&early));
+        let of = |id: &str| list.iter().find(|c| c.id == id).unwrap().clone();
+        assert_eq!(of("a").reach, Reach::Full);
+        assert_eq!(of("a").messages, 2);
+        assert_eq!(of("a").oldest_at, record(0, true, TODAY - 10, 9, 0).at);
+        assert_eq!(of("g").reach, Reach::Partial);
+        let bob = of("b");
+        assert_eq!(bob.reach, Reach::WithExport);
+        assert_eq!((bob.messages, bob.merged, bob.oldest_at), (2, 1, early.at));
+        assert!(list[0].messages >= list[1].messages, "most messages first");
     }
 }

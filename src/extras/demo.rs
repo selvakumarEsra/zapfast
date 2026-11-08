@@ -1,6 +1,7 @@
 //! Synthetic extras states for demo screenshots: `--demo-page favourites`,
 //! `insights`, `insights-people`, `insights-rhythm`, `insights-words`,
-//! `insights-kept`, `insights-saving`. Sample content only.
+//! `insights-kept`, `insights-saving`, `insights-history`. Sample content
+//! only.
 
 use crate::app::App;
 use crate::model::{ChatFilter, Content};
@@ -22,6 +23,7 @@ pub fn apply(app: &mut App, part: &str) -> bool {
         "insights-words" => Tab::Words,
         "insights-kept" => Tab::Kept,
         "insights-saving" => Tab::Saving,
+        "insights-history" => Tab::History,
         _ => return false,
     };
     let words = tab == Tab::Words;
@@ -31,11 +33,50 @@ pub fn apply(app: &mut App, part: &str) -> bool {
     let missing = (0..37)
         .map(|i| ("demo".to_owned(), i.to_string()))
         .collect();
+    let history = (tab == Tab::History).then(|| history(&source));
     let insights = &mut app.extras.insights;
     insights.set_demo(source, kept, missing);
+    if let Some((full, merge, selected)) = history {
+        insights.set_demo_history(full, merge, selected);
+    }
     insights.tab = tab;
     insights.open = true;
     true
+}
+
+/// Two chats with their full history, an export merged into a third that
+/// reaches a year further back, and two chats ticked for fetching.
+fn history(source: &Source) -> (Vec<String>, super::insights::merge::Merge, Vec<String>) {
+    let id = |i: usize| source.chats[i % source.chats.len()].id.clone();
+    let oldest = source.records.first().map_or(0, |record| record.at);
+    let zone = jiff::tz::TimeZone::system();
+    let mut lcg = Lcg(7);
+    let records = (0..420)
+        .map(|i| {
+            let at = oldest - 400 * 86_400 + i64::from(i) * 80_000 + i64::from(lcg.below(3600));
+            let (day, hour, weekday) = super::insights::source::local(at, &zone);
+            Record {
+                chat: 0,
+                from_me: lcg.below(2) == 0,
+                at,
+                day,
+                hour,
+                weekday,
+                kind: if lcg.below(6) == 0 {
+                    Kind::Photo
+                } else {
+                    Kind::Text
+                },
+                text: None,
+            }
+        })
+        .collect();
+    let merge = super::insights::merge::Merge {
+        chat: id(2),
+        export: source.chats[2 % source.chats.len()].title.clone(),
+        records,
+    };
+    (vec![id(0), id(4)], merge, vec![id(1), id(3)])
 }
 
 /// A small deterministic generator, so screenshots do not change.
@@ -159,6 +200,7 @@ fn sample(app: &App, words: bool) -> Source {
         chats,
         records,
         with_text: words,
+        full: Default::default(),
     }
 }
 

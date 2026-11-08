@@ -31,7 +31,12 @@ Three more fork features live in `src/extras/` (contract:
   quiet. These use only time, chat, direction and kind. **Words** (most used
   words and emoji, message length) reads message text only after you turn
   it on, in memory only. **Import chat export…** analyses a WhatsApp
-  `.txt`/`.zip` export without saving it. Locked chats and channels are
+  `.txt`/`.zip` export without saving it, either on its own or merged into
+  the matching chat, where it adds only the messages the archive lacks
+  (in memory, for the session). **History** shows how far back each chat
+  goes (full history, with export, or partial) and can ask your own phone
+  for older messages in ticked chats: one request every 15 s, at most 10
+  (about 500 messages) per chat per run. Locked chats and channels are
   never included.
 - **Keep**: a message deleted for everyone, and each version an edit
   replaces, is kept in the local archive (`extras_kept` table, encrypted

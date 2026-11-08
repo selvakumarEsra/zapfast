@@ -105,6 +105,7 @@ verifies:
   - src/extras/insights/stats.rs:quiet_contacts_were_frequent_before
   - src/extras/insights/stats.rs:the_period_bounds_every_metric
   - src/extras/insights/source.rs:locked_and_unlisted_chats_are_never_read_and_text_needs_consent
+  - src/extras/insights/mod.rs:insights_reads_the_active_accounts_archive
 
 ## Acceptance
 <!-- id: REQ-EXTRAS-003.A1 -->
@@ -122,6 +123,9 @@ verifies:
 <!-- id: REQ-EXTRAS-003.A5 -->
 - Loading never blocks the window, and a failure to open the archive is
   shown in the dashboard, not as a crash.
+<!-- id: REQ-EXTRAS-003.A6 -->
+- The dashboard reads the archive of the account shown in the window, and
+  switching accounts reads that account's archive the next time it opens.
 
 <!-- id: REQ-EXTRAS-004 -->
 ## Content analysis MUST be optional, private and off by default
@@ -248,3 +252,100 @@ verifies:
 <!-- id: REQ-EXTRAS-008.A2 -->
 - The backfill asks for at most 3 downloads per second and stops when the
   person stops it.
+
+<!-- id: REQ-EXTRAS-009 -->
+## Insights SHOULD merge a chat export into this account's numbers
+
+The archive only holds what the phone has sent this computer, so a chat's
+early history is often missing. The person can merge a chat export into
+the matching chat of this account instead of viewing it on its own: the
+account's dashboard then counts the export's messages that the archive
+does not already have. The merge lives in memory for the session; nothing
+is written to the archive, and the person can remove it.
+
+implementations:
+  - src/extras/insights/merge.rs:merge
+  - src/extras/insights/merge.rs:suggest
+  - src/extras/insights/mod.rs:merge_into
+
+verifies:
+  - src/extras/insights/merge.rs:an_export_adds_only_what_the_archive_lacks
+  - src/extras/insights/merge.rs:merging_the_same_export_twice_adds_nothing
+  - src/extras/insights/merge.rs:the_chat_with_the_exports_title_is_suggested_first
+
+## Acceptance
+<!-- id: REQ-EXTRAS-009.A1 -->
+- After choosing their name, the person picks the chat the export belongs
+  to, with the chat whose title matches the export's offered first, or
+  keeps the export separate as before. Locked chats and channels are not
+  offered.
+<!-- id: REQ-EXTRAS-009.A2 -->
+- Within the chosen chat, an export message matches an archived message of
+  the same direction and kind in the same minute, one to one; only export
+  messages left without a match are added.
+<!-- id: REQ-EXTRAS-009.A3 -->
+- Merging the same export again adds nothing.
+<!-- id: REQ-EXTRAS-009.A4 -->
+- Merged messages are never written to the archive, carry text only when
+  content analysis is on, and leave the numbers when the merge is removed.
+
+<!-- id: REQ-EXTRAS-010 -->
+## Insights SHOULD fetch older history from the phone for chosen chats
+
+The person can choose chats and ask for their older history. ZapFast asks
+the person's own phone for messages before the oldest one archived, the way
+scrolling to the top of a chat does, and the answers are written to the
+archive like any other history, so they stay on this computer and "Save
+everything now" can download their attachments. Each request wakes
+the phone (an iPhone shows "Syncing with WhatsApp"), so requests are spaced
+out and capped.
+
+implementations:
+  - src/extras/insights/fetch.rs:Fetch
+
+verifies:
+  - src/extras/insights/fetch.rs:requests_are_spaced_and_capped
+  - src/extras/insights/fetch.rs:a_chat_at_its_start_is_skipped
+  - src/extras/insights/fetch.rs:nothing_is_asked_while_offline_or_stopped
+
+## Acceptance
+<!-- id: REQ-EXTRAS-010.A1 -->
+- Only the person's own phone is asked; nothing is sent to any contact or
+  group, and nothing is asked while the phone is not connected.
+<!-- id: REQ-EXTRAS-010.A2 -->
+- At most one request every 15 seconds for the whole run, and at most 10
+  requests (about 500 messages) per chat per run.
+<!-- id: REQ-EXTRAS-010.A3 -->
+- A chat whose phone said there is nothing older is not asked again, and
+  the run ends when every chosen chat is done or the person stops it.
+<!-- id: REQ-EXTRAS-010.A4 -->
+- Locked chats and channels cannot be chosen.
+<!-- id: REQ-EXTRAS-010.A5 -->
+- The dashboard reads the archive again while the run goes and when it
+  ends, so new history shows up in the numbers.
+
+<!-- id: REQ-EXTRAS-011 -->
+## Insights MUST show how far back each chat's data goes
+
+The numbers are only as complete as the history on this computer, so the
+dashboard says what it covers instead of letting a partial view pass as
+the whole story.
+
+implementations:
+  - src/extras/insights/stats.rs:coverage
+
+verifies:
+  - src/extras/insights/stats.rs:coverage_tells_full_partial_and_exported_apart
+
+## Acceptance
+<!-- id: REQ-EXTRAS-011.A1 -->
+- For each chat it lists the date of its oldest message, its message count,
+  and whether it is "Full history" (the phone said there is nothing older),
+  "With export" (a merged export reaches further back than the archive), or
+  "Partial".
+<!-- id: REQ-EXTRAS-011.A2 -->
+- The Overview says from which date the numbers run and how many chats have
+  their full history, and links to the list.
+<!-- id: REQ-EXTRAS-011.A3 -->
+- Coverage comes from message times and chat state only; no message text is
+  read for it.
