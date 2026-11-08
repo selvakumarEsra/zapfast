@@ -49,6 +49,25 @@ jobs:
           rm -f CNAME
           bundle exec jekyll-vitepress build --baseurl "$BASE_PATH" --destination _site \
             -- --config _config.yml,_config.znga.yml
+      # Upstream's pages link to /download/ and /assets/... from the domain
+      # root, which is right on zapfast.rocks but not under /zapfast/.
+      # Rewrite such links in the built site rather than editing upstream's
+      # Markdown.
+      - name: Prefix root-relative links with the base path
+        working-directory: docs
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: |
+          ruby -e '
+            base = ENV.fetch("BASE_PATH").chomp("/")
+            exit if base.empty?
+            pattern = %r{\b(href|src)="/(?!/)(?!#{Regexp.escape(base[1..])}(?:/|"))}
+            Dir.glob("_site/**/*.html").each do |path|
+              html = File.read(path)
+              fixed = html.gsub(pattern) { "#{$1}=\"#{base}/" }
+              File.write(path, fixed) unless fixed == html
+            end
+          '
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/_site
