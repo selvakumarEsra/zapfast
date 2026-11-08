@@ -31,6 +31,7 @@ pub mod runner;
 pub mod style;
 pub mod triage;
 pub mod ui;
+pub mod update;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

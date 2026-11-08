@@ -57,10 +57,34 @@ git grep -n "znga hook"
 | `src/lib.rs` | `pub mod znga;` |
 | `src/app.rs` | the `znga` field and its init; `pub(crate)` on `waker`, `notifications`, `notification_opens`, `deferred_account_actions`; calls in `Event::Incoming`, `background_frame`, `frame_ui` |
 | `src/demo.rs` | `--demo-page znga`, `znga-drafts`, `znga-ask`, `znga-setup` |
+| `src/updates.rs` | `CONFIG` comes from `src/znga/update.rs` (the fork's releases and key) |
+| `.github/workflows/release.yml` | signs with `src/znga/update-public-key.hex`; skips notarization checks without Apple credentials |
+| `Cargo.toml` `version` | `<upstream>-znga.<n>` |
 
 If a merge conflicts on one of those lines, keep upstream's change and put the
 hook back. The rail button lives in its own layer, so it does not touch
 `src/ui/rail.rs`.
+
+## Releasing
+
+Fork versions are pre-releases of the upstream version they build on:
+`0.21.1-znga.1`, then `0.21.1-znga.2`, and after merging upstream 0.22.0,
+`0.22.0-znga.1`.
+
+1. Set `version` in `Cargo.toml`, run `cargo build` (updates `Cargo.lock`),
+   and write `packaging/release-notes/v<version>.md`.
+2. Commit on `main`, push, then `git tag v<version> && git push origin v<version>`.
+3. The Release workflow builds Linux, Windows, macOS and Flatpak, signs
+   `checksums.txt` with the fork's key (the `ZAPFAST_UPDATE_SIGNING_KEY`
+   secret of the `release-signing` environment), and creates a **draft
+   pre-release**. Publish it on GitHub so installed copies see the update.
+
+Znga builds update only from this fork and trust only the fork's key
+(`src/znga/update-public-key.hex`). The private key is kept outside the
+checkout. Back it up: installed copies cannot move to a new key. Without
+Apple or Windows signing credentials the DMG and MSI are unsigned (on a
+Mac, right-click **Open** the first time). Homebrew, winget and AUR
+publishing are upstream's and never run for fork tags.
 
 ## Tests
 

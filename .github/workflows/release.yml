@@ -245,6 +245,8 @@ jobs:
           cp "$RUNNER_TEMP/macos-packages/packages/macos-universal/dmg/"*.dmg dist/
 
       - name: Verify the notarized release app
+        # znga hook: the fork has no Apple credentials, so its DMG is unsigned.
+        if: env.APPLE_SIGNING_IDENTITY != ''
         run: bash packaging/macos/verify.sh "dist/zapfast-${GITHUB_REF_NAME}-macos-universal.dmg"
 
       - name: Attest macOS package
@@ -319,7 +321,7 @@ jobs:
         uses: crmne/native-packages/.github/actions/sign-release@25a4214d2f203357c84b069f39de7c17c0be6253 # v0.11.0
         with:
           directory: dist
-          public-key: assets/update-public-key.hex
+          public-key: src/znga/update-public-key.hex  # znga hook: the fork's key
           key-env: ZAPFAST_UPDATE_SIGNING_KEY
         env:
           ZAPFAST_UPDATE_SIGNING_KEY: ${{ secrets.ZAPFAST_UPDATE_SIGNING_KEY }}

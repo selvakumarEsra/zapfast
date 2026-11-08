@@ -9,9 +9,11 @@ pub use fastframe_update::{
     CHECK_INTERVAL, DownloadState, Installation, Kind, Prepared, Release, Source, Unsupported,
     Updater,
 };
+#[cfg_attr(feature = "znga", allow(unused_imports))] // znga hook
 use fastframe_update::{MacConfig, ReqwestTransport, UpdateConfig};
 
 /// ZapFast's releases and the names its installations have had.
+#[cfg(not(feature = "znga"))] // znga hook
 pub const CONFIG: UpdateConfig = UpdateConfig {
     // Cask and bundle names from before the rename. This also accepts
     // fastsapp-* marker files and `fastsapp <version>` answers, which no
@@ -33,6 +35,8 @@ pub const CONFIG: UpdateConfig = UpdateConfig {
         env!("CARGO_PKG_VERSION"),
     )
 };
+#[cfg(feature = "znga")] // znga hook
+pub use crate::znga::update::CONFIG;
 
 /// An updater on the proxy-aware reqwest client.
 pub fn updater() -> anyhow::Result<Updater> {

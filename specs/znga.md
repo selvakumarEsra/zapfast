@@ -331,3 +331,27 @@ implementations:
 <!-- id: REQ-ZNGA-010.A2 -->
 - Every change outside `src/znga/`, `specs/` and docs carries a
   `znga hook` marker.
+
+<!-- id: REQ-ZNGA-011 -->
+## Znga builds MUST update only from the fork
+
+A build with Znga checks this fork's releases for updates, never
+upstream's, so an update cannot replace Znga with upstream ZapFast. Fork
+releases are signed with the fork's own update key, and a build trusts
+only that key. Fork versions are pre-releases of the upstream version
+they are based on (`0.21.1-znga.1`), so a fork build moves to any newer
+published fork release.
+
+implementations:
+  - src/znga/update.rs:CONFIG
+
+verifies:
+  - src/znga/update.rs:updates_come_from_the_fork_with_its_own_key
+
+## Acceptance
+<!-- id: REQ-ZNGA-011.A1 -->
+- The update repository is `selvakumarEsra/zapfast`.
+<!-- id: REQ-ZNGA-011.A2 -->
+- The trusted publisher key is the fork's, and upstream's key is not trusted.
+<!-- id: REQ-ZNGA-011.A3 -->
+- A release whose signature was made with any other key is refused.
