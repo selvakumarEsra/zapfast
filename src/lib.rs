@@ -62,3 +62,5 @@ pub mod video;
 pub mod video_rate;
 pub mod voice;
 pub mod wallpaper;
+#[cfg(feature = "znga")]
+pub mod znga; // znga hook

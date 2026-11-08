@@ -329,6 +329,9 @@ name = "macos_menu"
 harness = false
 
 [features]
+# znga hook: the fork's AI companion (src/znga/), on by default here.
+default = ["znga"]
+znga = []
 # Sample data, layout tests, and screenshots. Not used in release builds.
 demo = []
 

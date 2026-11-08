@@ -462,6 +462,9 @@ pub struct App {
     pub roster: AccountRoster,
     pub accounts: Vec<Account>,
     pub active: usize,
+    /// The fork's AI companion.
+    #[cfg(feature = "znga")]
+    pub znga: crate::znga::Znga, // znga hook
     pub adding_account: bool,
     /// The account on screen when "Add account" was chosen, for Cancel.
     account_before_adding: Option<AccountId>,
@@ -791,7 +794,7 @@ pub struct App {
     /// store it in place of the one they wrote.
     prefilled: Option<(ChatId, String)>,
     /// Actions queued by a backend event, applied on that account after the frame.
-    deferred_account_actions: Vec<(AccountId, Action)>,
+    pub(crate) deferred_account_actions: Vec<(AccountId, Action)>, // znga hook: pub(crate)
     /// Set while the events of an account that is not on screen are being
     /// applied: they update that account only, never the window's composer,
     /// dialogs, playback, or read state.
@@ -906,7 +909,7 @@ pub struct App {
     /// The read or change of the login item running on its thread.
     login_item: crate::autostart::LoginItem,
     /// Cross-thread window repaint handle.
-    waker: Waker,
+    pub(crate) waker: Waker, // znga hook: pub(crate)
     tray: Option<fastframe_tray::Tray>,
     /// Whether this run may have a tray item at all (`AppOptions::tray`).
     tray_allowed: bool,
@@ -966,8 +969,10 @@ pub struct App {
     /// Requests received from later launches.
     control_commands: Option<std::sync::Arc<std::sync::Mutex<Vec<ControlCommand>>>>,
     /// Chats and messages from clicked notifications.
-    notification_opens: std::sync::Arc<std::sync::Mutex<Vec<crate::notify::NotificationTarget>>>,
-    notifications: crate::notify::Notifications,
+    // znga hook: both pub(crate)
+    pub(crate) notification_opens:
+        std::sync::Arc<std::sync::Mutex<Vec<crate::notify::NotificationTarget>>>,
+    pub(crate) notifications: crate::notify::Notifications,
     /// Unread count on the taskbar icon, where the desktop reads it. `None`
     /// for demo and test runs, which must not touch the real taskbar.
     badge: Option<crate::notify::Badge>,
@@ -1557,6 +1562,8 @@ impl App {
         let app_lock = crate::app_lock::AppLock::new(settings.app_lock_hash.is_some());
         let tray_lockable = settings.app_lock_hash.is_some();
         let mut app = Self {
+            #[cfg(feature = "znga")]
+            znga: crate::znga::Znga::load(&dirs.config, &dirs.cache, waker.clone()), // znga hook
             dirs,
             settings,
             locale,
@@ -4075,7 +4082,11 @@ impl App {
                         .collect();
                 }
             }
-            Event::Incoming { chat, message } => self.maybe_notify(&chat, &message),
+            Event::Incoming { chat, message } => {
+                self.maybe_notify(&chat, &message);
+                #[cfg(feature = "znga")]
+                crate::znga::hooks::observe_incoming(self, &chat, &message); // znga hook
+            }
             Event::Picked {
                 chat,
                 paths,
@@ -10456,6 +10467,8 @@ impl App {
         // Before this frame's pages: a reader who moved on ends the wait.
         self.end_pending_follow(ctx);
         self.handle_events();
+        #[cfg(feature = "znga")]
+        crate::znga::hooks::tick(self); // znga hook
         for uri in std::mem::take(&mut self.stale_images) {
             crate::image_cache::forget(ctx, &uri);
         }
@@ -11450,6 +11463,8 @@ impl App {
             self.take_drops_and_pastes(ctx);
         }
         crate::ui::show(self, ui);
+        #[cfg(feature = "znga")]
+        crate::znga::ui::show(self, ctx); // znga hook
         self.apply_actions(ctx);
         // After the view and its actions, so a change this frame starts the
         // pause from now. Nobody types behind the lock screen.

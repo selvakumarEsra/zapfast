@@ -2017,6 +2017,10 @@ pub fn apply_flags(app: &mut App, page: Option<&str>) {
         return;
     };
     for part in page.split(',').map(str::trim) {
+        #[cfg(feature = "znga")]
+        if crate::znga::demo::apply(app, part) {
+            continue; // znga hook
+        }
         match part {
             "history-date" => history_date_sample(app),
             "chat" | "" => {}
