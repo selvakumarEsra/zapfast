@@ -401,7 +401,9 @@ pub fn locked_lines(locale: crate::i18n::Locale) -> (String, String) {
     )
 }
 
-/// Builds the notification title and body, including the group sender.
+/// Builds the notification title and body. A group names its sender in the
+/// title; a direct chat names the account written to when several are linked.
+// @implements REQ-NOTIFY-001
 pub fn lines(
     chat_name: &str,
     is_group: bool,
@@ -409,16 +411,15 @@ pub fn lines(
     summary: &str,
     account: Option<&str>,
 ) -> (String, String) {
-    let body = if is_group {
-        format!("{sender}: {summary}")
+    let title = if is_group {
+        format!("{chat_name} · {sender}")
     } else {
-        summary.to_owned()
+        match account {
+            Some(account) => format!("{chat_name} · {account}"),
+            None => chat_name.to_owned(),
+        }
     };
-    let title = match account {
-        Some(account) => format!("{chat_name} · {account}"),
-        None => chat_name.to_owned(),
-    };
-    (title, body)
+    (title, summary.to_owned())
 }
 
 /// The bundle identifier packaging/macos gives the app.
@@ -855,7 +856,11 @@ mod tests {
     fn a_group_names_the_sender_and_a_chat_does_not() {
         assert_eq!(
             lines("Rust Berlin", true, "Mira", "Save me a seat", None),
-            ("Rust Berlin".to_owned(), "Mira: Save me a seat".to_owned())
+            ("Rust Berlin · Mira".to_owned(), "Save me a seat".to_owned())
+        );
+        assert_eq!(
+            lines("Rust Berlin", true, "Mira", "Save me a seat", Some("Work")),
+            ("Rust Berlin · Mira".to_owned(), "Save me a seat".to_owned())
         );
         assert_eq!(
             lines("Ada Lovelace", false, "Ada Lovelace", "Photo", Some("Work")).0,
